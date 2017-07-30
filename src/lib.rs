@@ -60,10 +60,7 @@ impl<T: Read> StreamReader<T> {
                         self.buffer.drain(0..i2+1);
                     }
 
-                    String::from_utf8(a1).map_err(|e| {
-                        println!("error line: {:?}", e);
-                        e
-                    })?
+                    String::from_utf8_lossy(&a1).into_owned()
                 };
 
                 return Ok(Some(a2));
@@ -90,10 +87,7 @@ impl<T: Read> StreamReader<T> {
                     self.buffer.drain(0..i2+1);
                 }
 
-                String::from_utf8(a1).map_err(|e| {
-                    println!("error line: {:?}", e);
-                    e
-                })?
+                String::from_utf8_lossy(&a1).into_owned()
             };
 
             return Ok(Some(a2));
