@@ -41,6 +41,10 @@ impl<T: Read> StreamReader<T> {
         StreamReader { pos: 0, inner: inner, buffer: Vec::new() }
     }
 
+    pub fn buf_size(&mut self) -> usize {
+        self.buffer.len()
+    }
+
     pub 
     fn line(&mut self) -> Result<Option<String>> {
         {
