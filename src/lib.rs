@@ -43,6 +43,26 @@ impl<T: Read> StreamReader<T> {
 
     pub 
     fn line(&mut self) -> Result<Option<String>> {
+        {
+            let i = find_new_line(&self.buffer);
+
+            if let Some(i2) = i {
+                let a2 = {
+                    let a1: Vec<u8> = self.buffer.iter().take(i2).map(|b| b.clone()).collect();
+
+                    if self.buffer.get(i2+1) == Some(&b'\n') {
+                        self.buffer.drain(0..i2+2);
+                    } else {
+                        self.buffer.drain(0..i2+1);
+                    }
+
+                    String::from_utf8(a1)?
+                };
+
+                return Ok(Some(a2));
+            }
+        }
+
         let mut buf2 = vec![0; 1024];
 
         let size = self.inner.read(&mut buf2)?;
