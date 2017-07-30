@@ -21,7 +21,6 @@ use errors::*;
 // \n 10
 
 fn find_new_line(data: &[u8]) -> Option<usize> {
-    println!("find_new_line: {:?}", data);
     for (index, one) in data.iter().peekable().enumerate() {
         if *one == 13 || *one == 10 {
             return Some(index);
@@ -44,8 +43,6 @@ impl<T: Read> StreamReader<T> {
 
     pub 
     fn line(&mut self) -> Result<Option<String>> {
-        println!("self.buffer: {:?}", self.buffer);
-
         let mut buf2 = vec![0; 1024];
 
         let size = self.inner.read(&mut buf2)?;
@@ -57,7 +54,6 @@ impl<T: Read> StreamReader<T> {
         let i = find_new_line(&self.buffer);
 
         if let Some(i2) = i {
-            println!("size1: {}", self.buffer.len());
             let a2 = {
                 let a1: Vec<u8> = self.buffer.iter().take(i2).map(|b| b.clone()).collect();
 
