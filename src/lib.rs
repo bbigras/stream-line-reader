@@ -60,7 +60,10 @@ impl<T: Read> StreamReader<T> {
                         self.buffer.drain(0..i2+1);
                     }
 
-                    String::from_utf8(a1)?
+                    String::from_utf8(a1).map_err(|e| {
+                        println!("error line: {:?}", e);
+                        e
+                    })?
                 };
 
                 return Ok(Some(a2));
@@ -87,7 +90,10 @@ impl<T: Read> StreamReader<T> {
                     self.buffer.drain(0..i2+1);
                 }
 
-                String::from_utf8(a1)?
+                String::from_utf8(a1).map_err(|e| {
+                    println!("error line: {:?}", e);
+                    e
+                })?
             };
 
             return Ok(Some(a2));
