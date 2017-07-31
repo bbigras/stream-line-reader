@@ -1,6 +1,5 @@
 #![recursion_limit = "1024"]
 
-use std::io::Cursor;
 use std::io::Read;
 
 #[macro_use]
@@ -104,12 +103,12 @@ fn toto<T: Read>(t: &T) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use ::StreamReader;
+    use std::io::Cursor;
+    use std::io::Write;
+
     #[test]
     fn it_works() {
-        use ::StreamReader;
-        use std::io::Cursor;
-        use std::io::Read;
-
         {
             let buf = Cursor::new(&b""[..]);
             let mut r = StreamReader::new(buf);
@@ -232,41 +231,21 @@ mod tests {
 
     #[test]
     fn it_works2() {
-        use ::StreamReader;
-        use std::io::Cursor;
-        use std::io::Read;
-        use std::io::Write;
-        use std::io::SeekFrom;
-        use std::io::Seek;
-
         {
-            //let mut aaa: Vec<u8> = b"test"[..].to_vec();
-            let mut aaa = Vec::new();
-            //let mut aaa = Vec::with_capacity(1024);
-            {
-            let mut buf = Cursor::new(aaa);
-            {
-                let mut r = StreamReader::new(buf.clone());
+            let mut r = StreamReader::new(Cursor::new(Vec::new()));
 
-                buf.get_mut().append(&mut b"test".to_vec()); //= &mut b"test"[..].to_vec();
-                //buf.write(b"test").unwrap();
-                //buf.seek(SeekFrom::Start(0)).unwrap();
-                assert_eq!(r.line().unwrap(), None);
+            r.inner.write(b"test").unwrap();
+            r.inner.set_position(0);
+            assert_eq!(r.line().unwrap(), None);
 
-                buf.get_mut().append(&mut b"\nsomething".to_vec());
-                //buf.write(b"\rsome bytes\nttt").unwrap();
-                //println!("aaa: {:?}", buf.into_inner());
-                //buf.seek(SeekFrom::Start(0)).unwrap();
-                //buf.set_position(0);
-                //println!("aaa: {:?}", buf.into_inner());
+            let last_pos = r.inner.position();
 
-                assert_eq!(r.line().unwrap(), Some("test".to_string()));
-                //assert!(false);
-            }
-            }
+            r.inner.write(b"\rsome bytes\nttt").unwrap();
+            r.inner.set_position(last_pos);
 
-            
-            
+            assert_eq!(r.line().unwrap(), Some("test".to_string()));
+            assert_eq!(r.line().unwrap(), Some("some bytes".to_string()));
+            assert_eq!(r.line().unwrap(), None);
         }
     }
 }
