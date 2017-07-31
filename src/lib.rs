@@ -248,4 +248,28 @@ mod tests {
             assert_eq!(r.line().unwrap(), None);
         }
     }
+
+    #[test]
+    fn line_endings_win() {
+        let mut r = StreamReader::new(Cursor::new("line1\r\nline 2\r\nsomething"));
+        assert_eq!(r.line().unwrap(), Some("line1".to_string()));
+        assert_eq!(r.line().unwrap(), Some("line 2".to_string()));
+        assert_eq!(r.line().unwrap(), None);
+    }
+
+    #[test]
+    fn line_endings_unix() {
+        let mut r = StreamReader::new(Cursor::new("line1\nline 2\nsomething"));
+        assert_eq!(r.line().unwrap(), Some("line1".to_string()));
+        assert_eq!(r.line().unwrap(), Some("line 2".to_string()));
+        assert_eq!(r.line().unwrap(), None);
+    }
+
+    #[test]
+    fn line_endings_both() {
+        let mut r = StreamReader::new(Cursor::new("line1\r\nline 2\nsomething"));
+        assert_eq!(r.line().unwrap(), Some("line1".to_string()));
+        assert_eq!(r.line().unwrap(), Some("line 2".to_string()));
+        assert_eq!(r.line().unwrap(), None);
+    }
 }
