@@ -95,12 +95,6 @@ impl<T: Read> StreamReader<T> {
     }
 }
 
-/*
-fn toto<T: Read>(t: &T) -> Option<String> {
-    None
-}
-*/
-
 #[cfg(test)]
 mod tests {
     use ::StreamReader;
