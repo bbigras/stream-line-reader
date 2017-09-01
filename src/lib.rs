@@ -20,10 +20,13 @@ use errors::*;
 // \n 10
 
 fn find_new_line(data: &[u8]) -> Option<usize> {
-    for (index, one) in data.iter().peekable().enumerate() {
-        if *one == 13 || *one == 10 {
+    let mut index = 0;
+    let mut it = data.iter().peekable();
+    while let Some(one) = it.next() {
+        if *one == 10 || (*one == 13 && it.peek() == Some(&&10)) {
             return Some(index);
         }
+        index += 1;
     }
     None
 }
@@ -97,7 +100,7 @@ impl<T: Read> StreamReader<T> {
 
 #[cfg(test)]
 mod tests {
-    use ::StreamReader;
+    use super::*;
     use std::io::Cursor;
     use std::io::Write;
 
@@ -120,35 +123,6 @@ mod tests {
             let mut r = StreamReader::new(buf);
             assert_eq!(r.line().unwrap(), None);
         }
-
-        {
-            let buf = Cursor::new(&b"12\r"[..]);
-
-            let mut r = StreamReader::new(buf);
-
-            assert_eq!(r.line().unwrap(), Some("12".to_string()));
-            assert_eq!(r.line().unwrap(), None);
-        }
-
-        {
-            let buf = Cursor::new(&b"12\r1"[..]);
-
-            let mut r = StreamReader::new(buf);
-
-            assert_eq!(r.line().unwrap(), Some("12".to_string()));
-            assert_eq!(r.line().unwrap(), None);
-        }
-
-        {
-            let buf = Cursor::new(&b"12\r13\rtest"[..]);
-
-            let mut r = StreamReader::new(buf);
-
-            assert_eq!(r.line().unwrap(), Some("12".to_string()));
-            assert_eq!(r.line().unwrap(), Some("13".to_string()));
-            assert_eq!(r.line().unwrap(), None);
-        }
-
 
         // ---
 
@@ -234,7 +208,7 @@ mod tests {
 
             let last_pos = r.inner.position();
 
-            r.inner.write(b"\rsome bytes\nttt").unwrap();
+            r.inner.write(b"\r\nsome bytes\nttt").unwrap();
             r.inner.set_position(last_pos);
 
             assert_eq!(r.line().unwrap(), Some("test".to_string()));
@@ -265,5 +239,29 @@ mod tests {
         assert_eq!(r.line().unwrap(), Some("line1".to_string()));
         assert_eq!(r.line().unwrap(), Some("line 2".to_string()));
         assert_eq!(r.line().unwrap(), None);
+    }
+
+    #[test]
+    fn test_find_new_line() {
+        {
+            let data = "aaaaaaaaaaaaaaaaaaaaa\naaaaaaaaaaaaaaaa";
+            assert_eq!(find_new_line(data.as_bytes()).unwrap(), 21);
+        }
+        {
+            let data = "aaaaaaaaaaaaaaaaa\r\naaaaaaaaaaaaaaaa";
+            assert_eq!(find_new_line(data.as_bytes()).unwrap(), 17);
+        }
+        {
+            let data = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+            assert_eq!(find_new_line(data.as_bytes()), None);
+        }
+        {
+            let data = "aaaaaaaaaaaaaaaaa\raaaaaaaaaaaaaaaaaaaa";
+            assert_eq!(find_new_line(data.as_bytes()), None);
+        }
+        {
+            let data = "";
+            assert_eq!(find_new_line(data.as_bytes()), None);
+        }
     }
 }
