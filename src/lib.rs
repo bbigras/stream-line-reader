@@ -30,8 +30,6 @@ fn find_new_line(data: &[u8]) -> Option<(usize, usize)> {
         },
         None => return None,
     };
-
-    return None;
 }
 
 #[derive(Clone, Debug)]
@@ -46,7 +44,7 @@ pub struct StreamReader<T> {
 
 impl<T: Read> StreamReader<T> {
     pub fn new(inner: T) -> StreamReader<T> {
-        let mut buffer: Vec<u8> = vec![0; 1024];
+        let buffer: Vec<u8> = vec![0; 1024];
         StreamReader {
             pos: 0,
             last_pos: 0,
