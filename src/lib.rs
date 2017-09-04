@@ -5,6 +5,8 @@ use std::io::Read;
 #[macro_use]
 extern crate error_chain;
 
+extern crate memchr;
+
 pub mod errors {
     error_chain! {
         foreign_links {
@@ -20,15 +22,16 @@ use errors::*;
 // \n 10
 
 fn find_new_line(data: &[u8]) -> Option<usize> {
-    let mut index = 0;
-    let mut it = data.iter().peekable();
-    while let Some(one) = it.next() {
-        if *one == 10 || (*one == 13 && it.peek() == Some(&&10)) {
-            return Some(index);
-        }
-        index += 1;
-    }
-    None
+    match memchr::memchr(b'\n', data) {
+        Some(i) => if i > 0 && data[i - 1] == b'\r' {
+            return Some(i - 1);
+        } else {
+            return Some(i);
+        },
+        None => return None,
+    };
+
+    return None;
 }
 
 #[derive(Clone, Debug)]

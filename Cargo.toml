@@ -5,3 +5,4 @@ authors = ["Bruno Bigras <bigras.bruno@gmail.com>"]
 
 [dependencies]
 error-chain = { version = "0.10", default-features = false }
+memchr = "1.0"
