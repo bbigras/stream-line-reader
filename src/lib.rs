@@ -21,12 +21,12 @@ use errors::*;
 // \r 13
 // \n 10
 
-fn find_new_line(data: &[u8]) -> Option<usize> {
+fn find_new_line(data: &[u8]) -> Option<(usize, usize)> {
     match memchr::memchr(b'\n', data) {
         Some(i) => if i > 0 && data[i - 1] == b'\r' {
-            return Some(i - 1);
+            return Some((i - 1, 2));
         } else {
-            return Some(i);
+            return Some((i, 1));
         },
         None => return None,
     };
@@ -39,12 +39,16 @@ pub struct StreamReader<T> {
     inner: T,
     pos: u64,
     buffer: Vec<u8>,
+    last_pos: usize,
+    last_size: usize,
 }
 
 impl<T: Read> StreamReader<T> {
     pub fn new(inner: T) -> StreamReader<T> {
         StreamReader {
             pos: 0,
+            last_pos: 0,
+            last_size: 0,
             inner: inner,
             buffer: Vec::new(),
         }
@@ -54,52 +58,42 @@ impl<T: Read> StreamReader<T> {
         self.buffer.len()
     }
 
-    pub fn line(&mut self) -> Result<Option<String>> {
+    pub fn line(&mut self) -> Result<Option<&[u8]>> {
+        if self.last_pos > 0 {
+            self.buffer.drain(0..self.last_pos+self.last_size);
+            self.last_pos = 0;
+            self.last_size = 0;
+        }
+
+        // ---
+
         {
             let i = find_new_line(&self.buffer);
 
-            if let Some(i2) = i {
-                let a2 = {
-                    let a1: Vec<u8> = self.buffer.iter().take(i2).map(|b| b.clone()).collect();
-
-                    if self.buffer.get(i2 + 1) == Some(&b'\n') {
-                        self.buffer.drain(0..i2 + 2);
-                    } else {
-                        self.buffer.drain(0..i2 + 1);
-                    }
-
-                    String::from_utf8_lossy(&a1).into_owned()
-                };
-
-                return Ok(Some(a2));
+            if let Some((i2, size)) = i {
+                self.last_pos = i2;
+                self.last_size = size;
+                return Ok(Some(&self.buffer[0..i2]));
             }
         }
 
         let mut buf2 = vec![0; 1024];
-
         let size = self.inner.read(&mut buf2)?;
 
         if size > 0 {
             self.buffer.append(&mut buf2[0..size].to_vec());
         }
 
-        let i = find_new_line(&self.buffer);
+        {
+            let i = find_new_line(&self.buffer);
 
-        if let Some(i2) = i {
-            let a2 = {
-                let a1: Vec<u8> = self.buffer.iter().take(i2).map(|b| b.clone()).collect();
-
-                if self.buffer.get(i2 + 1) == Some(&b'\n') {
-                    self.buffer.drain(0..i2 + 2);
-                } else {
-                    self.buffer.drain(0..i2 + 1);
-                }
-
-                String::from_utf8_lossy(&a1).into_owned()
-            };
-
-            return Ok(Some(a2));
+            if let Some((i2, size)) = i {
+                self.last_pos = i2;
+                self.last_size = size;
+                return Ok(Some(&self.buffer[0..i2]));
+            }
         }
+
         Ok(None)
     }
 }
@@ -121,7 +115,7 @@ mod tests {
         {
             let buf = Cursor::new(&b"\n"[..]);
             let mut r = StreamReader::new(buf);
-            assert_eq!(r.line().unwrap(), Some(String::new()));
+            assert_eq!(r.line().unwrap(), Some(&b""[..]));
         }
 
         {
@@ -143,7 +137,7 @@ mod tests {
 
             let mut r = StreamReader::new(buf);
 
-            assert_eq!(r.line().unwrap(), Some("12".to_string()));
+            assert_eq!(r.line().unwrap(), Some(&b"12"[..]));
             assert_eq!(r.line().unwrap(), None);
         }
 
@@ -152,7 +146,7 @@ mod tests {
 
             let mut r = StreamReader::new(buf);
 
-            assert_eq!(r.line().unwrap(), Some("12".to_string()));
+            assert_eq!(r.line().unwrap(), Some(&b"12"[..]));
             assert_eq!(r.line().unwrap(), None);
         }
 
@@ -161,8 +155,8 @@ mod tests {
 
             let mut r = StreamReader::new(buf);
 
-            assert_eq!(r.line().unwrap(), Some("12".to_string()));
-            assert_eq!(r.line().unwrap(), Some("13".to_string()));
+            assert_eq!(r.line().unwrap(), Some(&b"12"[..]));
+            assert_eq!(r.line().unwrap(), Some(&b"13"[..]));
             assert_eq!(r.line().unwrap(), None);
         }
 
@@ -179,7 +173,7 @@ mod tests {
 
             let mut r = StreamReader::new(buf);
 
-            assert_eq!(r.line().unwrap(), Some("12".to_string()));
+            assert_eq!(r.line().unwrap(), Some(&b"12"[..]));
             assert_eq!(r.line().unwrap(), None);
         }
 
@@ -188,7 +182,7 @@ mod tests {
 
             let mut r = StreamReader::new(buf);
 
-            assert_eq!(r.line().unwrap(), Some("12".to_string()));
+            assert_eq!(r.line().unwrap(), Some(&b"12"[..]));
             assert_eq!(r.line().unwrap(), None);
         }
 
@@ -197,8 +191,8 @@ mod tests {
 
             let mut r = StreamReader::new(buf);
 
-            assert_eq!(r.line().unwrap(), Some("12".to_string()));
-            assert_eq!(r.line().unwrap(), Some("13".to_string()));
+            assert_eq!(r.line().unwrap(), Some(&b"12"[..]));
+            assert_eq!(r.line().unwrap(), Some(&b"13"[..]));
             assert_eq!(r.line().unwrap(), None);
         }
     }
@@ -217,8 +211,8 @@ mod tests {
             r.inner.write(b"\r\nsome bytes\nttt").unwrap();
             r.inner.set_position(last_pos);
 
-            assert_eq!(r.line().unwrap(), Some("test".to_string()));
-            assert_eq!(r.line().unwrap(), Some("some bytes".to_string()));
+            assert_eq!(r.line().unwrap(), Some(&b"test"[..]));
+            assert_eq!(r.line().unwrap(), Some(&b"some bytes"[..]));
             assert_eq!(r.line().unwrap(), None);
         }
     }
@@ -226,24 +220,24 @@ mod tests {
     #[test]
     fn line_endings_win() {
         let mut r = StreamReader::new(Cursor::new("line1\r\nline 2\r\nsomething"));
-        assert_eq!(r.line().unwrap(), Some("line1".to_string()));
-        assert_eq!(r.line().unwrap(), Some("line 2".to_string()));
+        assert_eq!(r.line().unwrap(), Some(&b"line1"[..]));
+        assert_eq!(r.line().unwrap(), Some(&b"line 2"[..]));
         assert_eq!(r.line().unwrap(), None);
     }
 
     #[test]
     fn line_endings_unix() {
         let mut r = StreamReader::new(Cursor::new("line1\nline 2\nsomething"));
-        assert_eq!(r.line().unwrap(), Some("line1".to_string()));
-        assert_eq!(r.line().unwrap(), Some("line 2".to_string()));
+        assert_eq!(r.line().unwrap(), Some(&b"line1"[..]));
+        assert_eq!(r.line().unwrap(), Some(&b"line 2"[..]));
         assert_eq!(r.line().unwrap(), None);
     }
 
     #[test]
     fn line_endings_both() {
         let mut r = StreamReader::new(Cursor::new("line1\r\nline 2\nsomething"));
-        assert_eq!(r.line().unwrap(), Some("line1".to_string()));
-        assert_eq!(r.line().unwrap(), Some("line 2".to_string()));
+        assert_eq!(r.line().unwrap(), Some(&b"line1"[..]));
+        assert_eq!(r.line().unwrap(), Some(&b"line 2"[..]));
         assert_eq!(r.line().unwrap(), None);
     }
 
@@ -251,11 +245,11 @@ mod tests {
     fn test_find_new_line() {
         {
             let data = "aaaaaaaaaaaaaaaaaaaaa\naaaaaaaaaaaaaaaa";
-            assert_eq!(find_new_line(data.as_bytes()).unwrap(), 21);
+            assert_eq!(find_new_line(data.as_bytes()).unwrap(), (21, 1));
         }
         {
             let data = "aaaaaaaaaaaaaaaaa\r\naaaaaaaaaaaaaaaa";
-            assert_eq!(find_new_line(data.as_bytes()).unwrap(), 17);
+            assert_eq!(find_new_line(data.as_bytes()).unwrap(), (17, 2));
         }
         {
             let data = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
