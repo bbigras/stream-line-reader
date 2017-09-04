@@ -41,16 +41,19 @@ pub struct StreamReader<T> {
     buffer: Vec<u8>,
     last_pos: usize,
     last_size: usize,
+    buffer2: Box<[u8]>,
 }
 
 impl<T: Read> StreamReader<T> {
     pub fn new(inner: T) -> StreamReader<T> {
+        let mut buffer: Vec<u8> = vec![0; 1024];
         StreamReader {
             pos: 0,
             last_pos: 0,
             last_size: 0,
             inner: inner,
             buffer: Vec::new(),
+            buffer2: buffer.into_boxed_slice(),
         }
     }
 
@@ -77,11 +80,10 @@ impl<T: Read> StreamReader<T> {
             }
         }
 
-        let mut buf2 = vec![0; 1024];
-        let size = self.inner.read(&mut buf2)?;
+        let size = self.inner.read(&mut self.buffer2)?;
 
         if size > 0 {
-            self.buffer.append(&mut buf2[0..size].to_vec());
+            self.buffer.append(&mut self.buffer2[0..size].to_vec());
         }
 
         {
