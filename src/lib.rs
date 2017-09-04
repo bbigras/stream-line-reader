@@ -55,10 +55,6 @@ impl<T: Read> StreamReader<T> {
         }
     }
 
-    pub fn buf_size(&mut self) -> usize {
-        self.buffer.len()
-    }
-
     pub fn line(&mut self) -> Result<Option<&[u8]>> {
         if self.last_pos > 0 {
             self.buffer.drain(0..self.last_pos + self.last_size);
