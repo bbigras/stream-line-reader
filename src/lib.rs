@@ -43,15 +43,18 @@ pub struct StreamReader<T> {
 
 impl<T: Read> StreamReader<T> {
     pub fn new(inner: T) -> StreamReader<T> {
-        StreamReader { pos: 0, inner: inner, buffer: Vec::new() }
+        StreamReader {
+            pos: 0,
+            inner: inner,
+            buffer: Vec::new(),
+        }
     }
 
     pub fn buf_size(&mut self) -> usize {
         self.buffer.len()
     }
 
-    pub 
-    fn line(&mut self) -> Result<Option<String>> {
+    pub fn line(&mut self) -> Result<Option<String>> {
         {
             let i = find_new_line(&self.buffer);
 
@@ -59,10 +62,10 @@ impl<T: Read> StreamReader<T> {
                 let a2 = {
                     let a1: Vec<u8> = self.buffer.iter().take(i2).map(|b| b.clone()).collect();
 
-                    if self.buffer.get(i2+1) == Some(&b'\n') {
-                        self.buffer.drain(0..i2+2);
+                    if self.buffer.get(i2 + 1) == Some(&b'\n') {
+                        self.buffer.drain(0..i2 + 2);
                     } else {
-                        self.buffer.drain(0..i2+1);
+                        self.buffer.drain(0..i2 + 1);
                     }
 
                     String::from_utf8_lossy(&a1).into_owned()
@@ -86,10 +89,10 @@ impl<T: Read> StreamReader<T> {
             let a2 = {
                 let a1: Vec<u8> = self.buffer.iter().take(i2).map(|b| b.clone()).collect();
 
-                if self.buffer.get(i2+1) == Some(&b'\n') {
-                    self.buffer.drain(0..i2+2);
+                if self.buffer.get(i2 + 1) == Some(&b'\n') {
+                    self.buffer.drain(0..i2 + 2);
                 } else {
-                    self.buffer.drain(0..i2+1);
+                    self.buffer.drain(0..i2 + 1);
                 }
 
                 String::from_utf8_lossy(&a1).into_owned()
