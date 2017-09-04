@@ -63,7 +63,7 @@ impl<T: Read> StreamReader<T> {
 
     pub fn line(&mut self) -> Result<Option<&[u8]>> {
         if self.last_pos > 0 {
-            self.buffer.drain(0..self.last_pos+self.last_size);
+            self.buffer.drain(0..self.last_pos + self.last_size);
             self.last_pos = 0;
             self.last_size = 0;
         }
