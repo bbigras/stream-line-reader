@@ -24,12 +24,12 @@ use errors::*;
 fn find_new_line(data: &[u8]) -> Option<(usize, usize)> {
     match memchr::memchr(b'\n', data) {
         Some(i) => if i > 0 && data[i - 1] == b'\r' {
-            return Some((i - 1, 2));
+            Some((i - 1, 2))
         } else {
-            return Some((i, 1));
+            Some((i, 1))
         },
-        None => return None,
-    };
+        None => None,
+    }
 }
 
 #[derive(Clone, Debug)]
