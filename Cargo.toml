@@ -5,4 +5,4 @@ authors = ["Bruno Bigras <bigras.bruno@gmail.com>"]
 
 [dependencies]
 failure = "0.1"
-memchr = "1.0"
+memchr = "2.0"
