@@ -1,10 +1,9 @@
-use std::io::Read;
-
 extern crate failure;
-
 extern crate memchr;
 
 use failure::Error;
+
+use std::io::Read;
 
 // \r 13
 // \n 10
