@@ -1,22 +1,10 @@
-#![recursion_limit = "1024"]
-
 use std::io::Read;
 
-#[macro_use]
-extern crate error_chain;
+extern crate failure;
 
 extern crate memchr;
 
-pub mod errors {
-    error_chain! {
-        foreign_links {
-            Io(::std::io::Error);
-            Utf(::std::string::FromUtf8Error);
-        }
-    }
-}
-
-use errors::*;
+use failure::Error;
 
 // \r 13
 // \n 10
@@ -53,7 +41,7 @@ impl<T: Read> StreamReader<T> {
         }
     }
 
-    pub fn line(&mut self) -> Result<Option<&[u8]>> {
+    pub fn line(&mut self) -> Result<Option<&[u8]>, Error> {
         if let Some(p) = self.last_pos {
             self.buffer.drain(0..p + self.last_size.unwrap());
             self.last_pos = None;
