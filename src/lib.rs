@@ -10,11 +10,13 @@ use std::io::Read;
 
 fn find_new_line(data: &[u8]) -> Option<(usize, usize)> {
     match memchr::memchr(b'\n', data) {
-        Some(i) => if i > 0 && data[i - 1] == b'\r' {
-            Some((i - 1, 2))
-        } else {
-            Some((i, 1))
-        },
+        Some(i) => {
+            if i > 0 && data[i - 1] == b'\r' {
+                Some((i - 1, 2))
+            } else {
+                Some((i, 1))
+            }
+        }
         None => None,
     }
 }
