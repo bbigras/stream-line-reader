@@ -3,7 +3,7 @@ extern crate memchr;
 
 use failure::Error;
 
-use std::io::Read;
+use std::io::BufRead;
 
 // \r 13
 // \n 10
@@ -25,59 +25,47 @@ fn find_new_line(data: &[u8]) -> Option<(usize, usize)> {
 pub struct StreamReader<T> {
     inner: T,
     buffer: Vec<u8>,
-    last_pos: Option<usize>,
-    last_size: Option<usize>,
-    buffer2: Box<[u8]>,
+    clear_next: bool,
 }
 
-impl<T: Read> StreamReader<T> {
+impl<T: BufRead> StreamReader<T> {
     pub fn new(inner: T) -> StreamReader<T> {
-        let buffer: Vec<u8> = vec![0; 1024];
         StreamReader {
-            last_pos: None,
-            last_size: None,
-            inner: inner,
+            inner,
             buffer: Vec::new(),
-            buffer2: buffer.into_boxed_slice(),
+            clear_next: false,
         }
     }
 
-    pub fn line(&mut self) -> Result<Option<&[u8]>, Error> {
-        if let Some(p) = self.last_pos {
-            self.buffer.drain(0..p + self.last_size.unwrap());
-            self.last_pos = None;
-            self.last_size = None;
+    pub fn line(&mut self) -> Result<(bool, Option<&[u8]>), Error> {
+        if self.clear_next {
+            self.buffer.clear();
         }
+        self.clear_next = false;
 
-        // ---
-
-        {
-            let i = find_new_line(&self.buffer);
-
-            if let Some((i2, size)) = i {
-                self.last_pos = Some(i2);
-                self.last_size = Some(size);
-                return Ok(Some(&self.buffer[0..i2]));
+        let (line, length) = {
+            let buffer = self.inner.fill_buf().unwrap();
+            if let Some((pos, size)) = find_new_line(buffer) {
+                self.buffer.extend_from_slice(&buffer[..pos]);
+                (true, pos + size)
+            } else {
+                self.buffer.extend_from_slice(&buffer);
+                (false, buffer.len())
             }
+        };
+
+        if length == 0 {
+            return Ok((true, None));
         }
 
-        let size = self.inner.read(&mut self.buffer2)?;
+        self.inner.consume(length);
 
-        if size > 0 {
-            self.buffer.append(&mut self.buffer2[0..size].to_vec());
+        if line {
+            self.clear_next = true;
+            Ok((false, Some(&self.buffer)))
+        } else {
+            Ok((false, None))
         }
-
-        {
-            let i = find_new_line(&self.buffer);
-
-            if let Some((i2, size)) = i {
-                self.last_pos = Some(i2);
-                self.last_size = Some(size);
-                return Ok(Some(&self.buffer[0..i2]));
-            }
-        }
-
-        Ok(None)
     }
 }
 
@@ -92,19 +80,19 @@ mod tests {
         {
             let buf = Cursor::new(&b""[..]);
             let mut r = StreamReader::new(buf);
-            assert_eq!(r.line().unwrap(), None);
+            assert_eq!(r.line().unwrap(), (true, None));
         }
 
         {
             let buf = Cursor::new(&b"\n"[..]);
             let mut r = StreamReader::new(buf);
-            assert_eq!(r.line().unwrap(), Some(&b""[..]));
+            assert_eq!(r.line().unwrap(), (false, Some(&b""[..])));
         }
 
         {
             let buf = Cursor::new(&b"12"[..]);
             let mut r = StreamReader::new(buf);
-            assert_eq!(r.line().unwrap(), None);
+            assert_eq!(r.line().unwrap(), (false, None));
         }
 
         // ---
@@ -112,7 +100,7 @@ mod tests {
         {
             let buf = Cursor::new(&b"12"[..]);
             let mut r = StreamReader::new(buf);
-            assert_eq!(r.line().unwrap(), None);
+            assert_eq!(r.line().unwrap(), (false, None));
         }
 
         {
@@ -120,8 +108,8 @@ mod tests {
 
             let mut r = StreamReader::new(buf);
 
-            assert_eq!(r.line().unwrap(), Some(&b"12"[..]));
-            assert_eq!(r.line().unwrap(), None);
+            assert_eq!(r.line().unwrap(), (false, Some(&b"12"[..])));
+            assert_eq!(r.line().unwrap(), (true, None));
         }
 
         {
@@ -129,8 +117,8 @@ mod tests {
 
             let mut r = StreamReader::new(buf);
 
-            assert_eq!(r.line().unwrap(), Some(&b"12"[..]));
-            assert_eq!(r.line().unwrap(), None);
+            assert_eq!(r.line().unwrap(), (false, Some(&b"12"[..])));
+            assert_eq!(r.line().unwrap(), (false, None));
         }
 
         {
@@ -138,9 +126,9 @@ mod tests {
 
             let mut r = StreamReader::new(buf);
 
-            assert_eq!(r.line().unwrap(), Some(&b"12"[..]));
-            assert_eq!(r.line().unwrap(), Some(&b"13"[..]));
-            assert_eq!(r.line().unwrap(), None);
+            assert_eq!(r.line().unwrap(), (false, Some(&b"12"[..])));
+            assert_eq!(r.line().unwrap(), (false, Some(&b"13"[..])));
+            assert_eq!(r.line().unwrap(), (false, None));
         }
 
         // -----
@@ -148,7 +136,7 @@ mod tests {
         {
             let buf = Cursor::new(&b"12"[..]);
             let mut r = StreamReader::new(buf);
-            assert_eq!(r.line().unwrap(), None);
+            assert_eq!(r.line().unwrap(), (false, None));
         }
 
         {
@@ -156,8 +144,8 @@ mod tests {
 
             let mut r = StreamReader::new(buf);
 
-            assert_eq!(r.line().unwrap(), Some(&b"12"[..]));
-            assert_eq!(r.line().unwrap(), None);
+            assert_eq!(r.line().unwrap(), (false, Some(&b"12"[..])));
+            assert_eq!(r.line().unwrap(), (true, None));
         }
 
         {
@@ -165,8 +153,8 @@ mod tests {
 
             let mut r = StreamReader::new(buf);
 
-            assert_eq!(r.line().unwrap(), Some(&b"12"[..]));
-            assert_eq!(r.line().unwrap(), None);
+            assert_eq!(r.line().unwrap(), (false, Some(&b"12"[..])));
+            assert_eq!(r.line().unwrap(), (false, None));
         }
 
         {
@@ -174,9 +162,9 @@ mod tests {
 
             let mut r = StreamReader::new(buf);
 
-            assert_eq!(r.line().unwrap(), Some(&b"12"[..]));
-            assert_eq!(r.line().unwrap(), Some(&b"13"[..]));
-            assert_eq!(r.line().unwrap(), None);
+            assert_eq!(r.line().unwrap(), (false, Some(&b"12"[..])));
+            assert_eq!(r.line().unwrap(), (false, Some(&b"13"[..])));
+            assert_eq!(r.line().unwrap(), (false, None));
         }
     }
 
@@ -187,59 +175,59 @@ mod tests {
 
             r.inner.write(b"test").unwrap();
             r.inner.set_position(0);
-            assert_eq!(r.line().unwrap(), None);
+            assert_eq!(r.line().unwrap(), (false, None));
 
             let last_pos = r.inner.position();
 
             r.inner.write(b"\r\nsome bytes\nttt").unwrap();
             r.inner.set_position(last_pos);
 
-            assert_eq!(r.line().unwrap(), Some(&b"test"[..]));
-            assert_eq!(r.line().unwrap(), Some(&b"some bytes"[..]));
-            assert_eq!(r.line().unwrap(), None);
+            assert_eq!(r.line().unwrap(), (false, Some(&b"test"[..])));
+            assert_eq!(r.line().unwrap(), (false, Some(&b"some bytes"[..])));
+            assert_eq!(r.line().unwrap(), (false, None));
         }
     }
 
     #[test]
     fn line_endings_win() {
         let mut r = StreamReader::new(Cursor::new("line1\r\nline 2\r\nsomething"));
-        assert_eq!(r.line().unwrap(), Some(&b"line1"[..]));
-        assert_eq!(r.line().unwrap(), Some(&b"line 2"[..]));
-        assert_eq!(r.line().unwrap(), None);
+        assert_eq!(r.line().unwrap(), (false, Some(&b"line1"[..])));
+        assert_eq!(r.line().unwrap(), (false, Some(&b"line 2"[..])));
+        assert_eq!(r.line().unwrap(), (false, None));
     }
 
     #[test]
     fn line_endings_unix() {
         let mut r = StreamReader::new(Cursor::new("line1\nline 2\nsomething"));
-        assert_eq!(r.line().unwrap(), Some(&b"line1"[..]));
-        assert_eq!(r.line().unwrap(), Some(&b"line 2"[..]));
-        assert_eq!(r.line().unwrap(), None);
+        assert_eq!(r.line().unwrap(), (false, Some(&b"line1"[..])));
+        assert_eq!(r.line().unwrap(), (false, Some(&b"line 2"[..])));
+        assert_eq!(r.line().unwrap(), (false, None));
     }
 
     #[test]
     fn test_multiples_newlines_unix() {
         let mut r = StreamReader::new(Cursor::new("\n\ntest\nthing"));
-        assert_eq!(r.line().unwrap(), Some(&b""[..]));
-        assert_eq!(r.line().unwrap(), Some(&b""[..]));
-        assert_eq!(r.line().unwrap(), Some(&b"test"[..]));
-        assert_eq!(r.line().unwrap(), None);
+        assert_eq!(r.line().unwrap(), (false, Some(&b""[..])));
+        assert_eq!(r.line().unwrap(), (false, Some(&b""[..])));
+        assert_eq!(r.line().unwrap(), (false, Some(&b"test"[..])));
+        assert_eq!(r.line().unwrap(), (false, None));
     }
 
     #[test]
     fn test_multiples_newlines_win() {
         let mut r = StreamReader::new(Cursor::new("\r\n\r\ntest\r\nthing"));
-        assert_eq!(r.line().unwrap(), Some(&b""[..]));
-        assert_eq!(r.line().unwrap(), Some(&b""[..]));
-        assert_eq!(r.line().unwrap(), Some(&b"test"[..]));
-        assert_eq!(r.line().unwrap(), None);
+        assert_eq!(r.line().unwrap(), (false, Some(&b""[..])));
+        assert_eq!(r.line().unwrap(), (false, Some(&b""[..])));
+        assert_eq!(r.line().unwrap(), (false, Some(&b"test"[..])));
+        assert_eq!(r.line().unwrap(), (false, None));
     }
 
     #[test]
     fn line_endings_both() {
         let mut r = StreamReader::new(Cursor::new("line1\r\nline 2\nsomething"));
-        assert_eq!(r.line().unwrap(), Some(&b"line1"[..]));
-        assert_eq!(r.line().unwrap(), Some(&b"line 2"[..]));
-        assert_eq!(r.line().unwrap(), None);
+        assert_eq!(r.line().unwrap(), (false, Some(&b"line1"[..])));
+        assert_eq!(r.line().unwrap(), (false, Some(&b"line 2"[..])));
+        assert_eq!(r.line().unwrap(), (false, None));
     }
 
     #[test]
