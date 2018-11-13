@@ -46,7 +46,14 @@ impl<T: BufRead> StreamReader<T> {
         let (line, length) = {
             let buffer = self.inner.fill_buf().unwrap();
             if let Some((pos, size)) = find_new_line(buffer) {
-                self.buffer.extend_from_slice(&buffer[..pos]);
+                if pos == 0 {
+                    if self.buffer.len() > 0 && self.buffer[self.buffer.len() - 1] == b'\r' {
+                        self.buffer.pop();
+                    }
+                } else {
+                    self.buffer.extend_from_slice(&buffer[..pos]);
+                }
+
                 (true, pos + size)
             } else {
                 self.buffer.extend_from_slice(&buffer);
