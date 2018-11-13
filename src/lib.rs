@@ -231,6 +231,22 @@ mod tests {
     }
 
     #[test]
+    fn bug_middle_cr_lf() {
+        let mut r = StreamReader::new(Cursor::new(Vec::new()));
+
+        r.inner.write(b"[2018.10.02-03.10.58:467][952]LogSquadTrace: [DedicatedServer]ASQPlayerController::ChangeState(): PC=TotenKopf OldState=Inactive NewState=Playing\r").unwrap();
+        r.inner.set_position(0);
+        assert_eq!(r.line().unwrap(), (false, None));
+
+        let last_pos = r.inner.position();
+
+        r.inner.write(b"\n[2018.10.02-03.10.58:467]").unwrap();
+        r.inner.set_position(last_pos);
+
+        assert_eq!(r.line().unwrap(), (false, Some(&b"[2018.10.02-03.10.58:467][952]LogSquadTrace: [DedicatedServer]ASQPlayerController::ChangeState(): PC=TotenKopf OldState=Inactive NewState=Playing"[..])));
+    }
+
+    #[test]
     fn test_find_new_line() {
         {
             let data = "aaaaaaaaaaaaaaaaaaaaa\naaaaaaaaaaaaaaaa";
