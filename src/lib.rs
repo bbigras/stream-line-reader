@@ -1,6 +1,3 @@
-extern crate failure;
-extern crate memchr;
-
 use failure::Error;
 
 use std::io::BufRead;
